@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Plate Cost Counter</title>
+<style>
+:root{
+  --ink:#1d2430; --paper:#f5f3ef; --card:#ffffff; --line:#d9d4cb;
+  --accent:#A03E75; --accent2:#1C5560; --ok:#2c6e49; --warn:#a63c22; --mut:#6b7280;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.5 "Avenir Next","Segoe UI",system-ui,sans-serif;background:var(--paper);color:var(--ink);padding-bottom:60px}
+header{background:var(--accent2);color:#fff;padding:22px 28px}
+header h1{margin:0;font-size:26px;letter-spacing:.3px}
+header p{margin:6px 0 0;opacity:.92;max-width:900px}
+.badge{display:inline-block;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.35);border-radius:4px;padding:2px 8px;font-size:12px;margin-top:10px}
+main{max-width:1180px;margin:0 auto;padding:20px 24px}
+#banner{display:none;background:#7a1f1f;color:#fff;font-weight:700;font-size:20px;text-align:center;
+  padding:14px;letter-spacing:1px;border-radius:6px;margin:0 0 18px}
+#banner.on{display:block}
+.grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+@media(max-width:900px){.grid{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:14px}
+.card h2{margin:0 0 8px;font-size:15px;color:var(--accent2);text-transform:uppercase;letter-spacing:.6px}
+textarea{width:100%;height:150px;font:12px/1.45 ui-monospace,Menlo,Consolas,monospace;border:1px solid var(--line);
+  border-radius:6px;padding:8px;resize:vertical;background:#fbfaf8;color:var(--ink)}
+.controls{display:flex;gap:12px;align-items:center;margin:16px 0;flex-wrap:wrap}
+button{font:600 15px/1 inherit;border:0;border-radius:6px;padding:12px 20px;cursor:pointer}
+#run{background:var(--accent);color:#fff}
+#loadSample{background:#fff;border:1.5px solid var(--accent2);color:var(--accent2)}
+label.t{font-weight:600;color:var(--accent2)}
+#target{width:70px;font:inherit;padding:8px;border:1px solid var(--line);border-radius:6px;text-align:right}
+#summary{display:none;gap:12px;flex-wrap:wrap;margin:6px 0 16px}
+#summary.on{display:flex}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px 16px;min-width:120px}
+.stat b{display:block;font-size:22px}
+.stat span{font-size:12px;color:var(--mut)}
+table{width:100%;border-collapse:collapse;background:var(--card)}
+th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;font-size:14px}
+th{background:#efece6;color:#3a3f49;font-size:12px;text-transform:uppercase;letter-spacing:.5px}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+.flag-over{color:var(--warn);font-weight:700}
+.flag-ok{color:var(--ok);font-weight:600}
+.st-inc{color:#8a6d1a;font-weight:600}
+.st-ref{color:var(--warn);font-weight:600}
+.note{color:var(--mut);font-size:12.5px}
+section{margin-top:22px}
+section h2{font-size:17px;color:var(--accent2);border-bottom:2px solid var(--accent);display:inline-block;padding-bottom:2px}
+ul.plain{list-style:none;padding:0;margin:8px 0}
+ul.plain li{padding:5px 8px;border-left:3px solid var(--line);margin:4px 0;background:var(--card);font-size:13.5px}
+ul.plain li.ref{border-left-color:var(--warn)}
+ul.plain li.park{border-left-color:#8a6d1a}
+#checks li.pass{border-left-color:var(--ok)}
+#checks li.fail{border-left-color:var(--warn);font-weight:700}
+.worst{background:#fdf1ec;border:1px solid #e4b9a8;border-radius:8px;padding:10px 14px;margin:10px 0;font-size:14.5px}
+footer{margin-top:34px;color:var(--mut);font-size:12.5px}
+</style>
+</head>
+<body>
+<header>
+  <h1>The Plate Cost Counter</h1>
+  <p>Paste what you buy, what goes on each plate, and what sold. It prices every dish from pack
+     price, pack size and yield, flags the menu lines running past your target food-cost
+     percentage, and shows where the week&rsquo;s money actually went &mdash; and where a number cannot be
+     trusted, it refuses, with the row and the reason, instead of guessing.</p>
+  <span class="badge">Built on camera for Build It With AI &middot; sample data is fictional</span>
+</header>
+<main>
+  <div class="grid" style="margin-top:18px">
+    <div class="card"><h2>1 &middot; Ingredients</h2>
+      <p class="note">ingredient, pack size, pack unit, pack price, yield %</p>
+      <textarea id="ing" spellcheck="false"></textarea></div>
+    <div class="card"><h2>2 &middot; Recipes</h2>
+      <p class="note">dish, menu price, ingredient, qty, unit</p>
+      <textarea id="rec" spellcheck="false"></textarea></div>
+    <div class="card"><h2>3 &middot; Sales</h2>
+      <p class="note">dish, sold</p>
+      <textarea id="sal" spellcheck="false"></textarea></div>
+  </div>
+  <div class="controls">
+    <button id="loadSample">Load the sample menu</button>
+    <label class="t" for="target">Target food cost %</label>
+    <input id="target" value="30" inputmode="decimal">
+    <button id="run">Price the menu</button>
+  </div>
+  <div id="banner">DO NOT TRUST THESE PLATE COSTS</div>
+  <div id="summary"></div>
+  <section id="boardSec" style="display:none">
+    <h2>The dish board</h2>
+    <table id="board"><thead><tr>
+      <th>Dish</th><th class="n">Menu price</th><th class="n">Plate cost</th>
+      <th class="n">Food cost %</th><th class="n">Margin</th><th>Status</th><th>Notes</th>
+    </tr></thead><tbody></tbody></table>
+  </section>
+  <section id="moneySec" style="display:none">
+    <h2>Where the period&rsquo;s money went</h2>
+    <div id="worst" class="worst" style="display:none"></div>
+    <table id="money"><thead><tr>
+      <th>Dish</th><th class="n">Sold</th><th class="n">Revenue</th><th class="n">Food cost $</th>
+      <th class="n">Profit</th><th class="n">$ above target</th>
+    </tr></thead><tbody></tbody></table>
+  </section>
+  <section id="refSec" style="display:none">
+    <h2>Refused &mdash; row and reason</h2>
+    <ul class="plain" id="refusals"></ul>
+    <h2 style="margin-top:14px">Parked duplicates &amp; notes</h2>
+    <ul class="plain" id="parkedNotes"></ul>
+  </section>
+  <section id="checkSec" style="display:none">
+    <h2>The audit (the page checks itself)</h2>
+    <ul class="plain" id="checks"></ul>
+  </section>
+  <footer>
+    The Plate Cost Counter prices plates from your own pack prices; it does not watch your POS,
+    read invoices, or know a density table &mdash; a cup of something bought by the pound gets refused,
+    not guessed. Free, single file, runs entirely in your browser; nothing is uploaded anywhere.
+  </footer>
+</main>
+<script>
+/* THE PLATE COST COUNTER — engine (correct build, written to SPEC.md). Pure; no I/O. */
+(function (root) {
+  "use strict";
+  const WEIGHT = { g: 1, kg: 1000, oz: 28.3495, lb: 453.592 };
+  const VOLUME = { ml: 1, l: 1000, tsp: 4.92892, tbsp: 14.7868, floz: 29.5735, cup: 236.588, qt: 946.353, gal: 3785.41 };
+  const COUNT = { each: 1, dozen: 12 };
+  function unitInfo(uRaw) {
+    const u = String(uRaw).trim().toLowerCase().replace(/^fl\s+oz$/, "floz");
+    if (u in WEIGHT) return { fam: "weight", f: WEIGHT[u], u };
+    if (u in VOLUME) return { fam: "volume", f: VOLUME[u], u };
+    if (u in COUNT) return { fam: "count", f: COUNT[u], u };
+    return null;
+  }
+  const r2 = x => Math.floor(x * 100 + 0.5) / 100;
+  const r1 = x => Math.floor(x * 10 + 0.5) / 10;
+  const key = s => String(s).trim().toLowerCase();
+  const isNum = s => { const t = String(s).trim(); return t !== "" && /^-?(\d+\.?\d*|\.\d+)$/.test(t); };
+
+  function parseCSV(text, nFields) {
+    const out = [];
+    const lines = String(text).split(/\r?\n/);
+    for (let i = 1; i < lines.length; i++) {
+      if (lines[i].trim() === "") continue;
+      out.push({ line: i + 1, f: lines[i].split(",").map(x => x.trim()), raw: lines[i] });
+    }
+    return out;
+  }
+  const HEADERS = {
+    ingredients: ["ingredient", "pack size", "pack unit", "pack price", "yield %"],
+    recipes: ["dish", "menu price", "ingredient", "qty", "unit"],
+    sales: ["dish", "sold"]
+  };
+  function headerOk(text, which) {
+    const first = String(text).split(/\r?\n/)[0] || "";
+    const f = first.split(",").map(x => x.trim().toLowerCase());
+    const want = HEADERS[which];
+    return f.length === want.length && want.every((w, i) => f[i] === w);
+  }
+
+  function computeBoard(ingText, recText, salesText, targetPct) {
+    const target = Number(targetPct);
+    const refusals = { ingredients: [], recipes: [], sales: [] };
+    const parked = { ingredients: [], recipes: [], sales: [] };
+
+    // ---- header validation (a paste with a wrong header is refused whole) ----
+    const headerBad = [];
+    if (!headerOk(ingText, "ingredients")) { headerBad.push("ingredients"); ingText = ""; }
+    if (!headerOk(recText, "recipes")) { headerBad.push("recipes"); recText = ""; }
+    if (!headerOk(salesText, "sales")) { headerBad.push("sales"); salesText = ""; }
+
+    // ---- ingredients ----
+    const ingRows = parseCSV(ingText, 5);
+    const ingByKey = new Map();   // key -> {name,size,unit:info,price,yield,line}
+    const seenIng = new Map();    // key -> canonical row fields for duplicate check
+    const ingStatus = new Map();  // key -> 'ok' | 'refused'
+    for (const row of ingRows) {
+      const [name, sizeS, unitS, priceS, yieldS] = row.f;
+      const refuse = why => { refusals.ingredients.push({ line: row.line, name: (name || "").trim(), why }); if (name && !ingByKey.has(key(name))) ingStatus.set(key(name), "refused"); };
+      if (row.f.length !== 5) { refusals.ingredients.push({ line: row.line, name: (name || "").trim(), why: "wrong number of fields" }); continue; }
+      const k = key(name);
+      if (seenIng.has(k)) {
+        const prev = seenIng.get(k);
+        if (prev.sig === row.f.map(key).join("|")) { parked.ingredients.push({ line: row.line, name: name.trim(), why: "duplicate ingredient row — counted once" }); continue; }
+        // conflicting rows: refuse BOTH (remove the accepted one)
+        refusals.ingredients.push({ line: prev.line, name: prev.name, why: "conflicting ingredient rows" });
+        refusals.ingredients.push({ line: row.line, name: name.trim(), why: "conflicting ingredient rows" });
+        ingByKey.delete(k); ingStatus.set(k, "refused"); seenIng.set(k, { sig: "<conflict>", line: row.line, name: name.trim() });
+        continue;
+      }
+      if (!name || !name.trim()) { refuse("blank ingredient name"); continue; }
+      if (!isNum(sizeS) || Number(sizeS) <= 0) { seenIng.set(k, { sig: "<refused>", line: row.line, name: name.trim() }); refuse("pack size is not a number greater than zero"); continue; }
+      const ui = unitInfo(unitS);
+      if (!ui) { seenIng.set(k, { sig: "<refused>", line: row.line, name: name.trim() }); refuse("unknown pack unit “" + unitS + "”"); continue; }
+      if (!isNum(priceS) || Number(priceS) < 0) { seenIng.set(k, { sig: "<refused>", line: row.line, name: name.trim() }); refuse("pack price is not a number at or above zero"); continue; }
+      if (!isNum(yieldS) || Number(yieldS) <= 0 || Number(yieldS) > 100) { seenIng.set(k, { sig: "<refused>", line: row.line, name: name.trim() }); refuse("yield must be a number above 0 and at most 100"); continue; }
+      seenIng.set(k, { sig: row.f.map(key).join("|"), line: row.line, name: name.trim() });
+      ingByKey.set(k, { name: name.trim(), size: Number(sizeS), unit: ui, price: Number(priceS), yieldPct: Number(yieldS), line: row.line });
+      ingStatus.set(k, "ok");
+    }
+
+    // ---- recipes ----
+    const recRows = parseCSV(recText, 5);
+    // group by dish key, preserving order of first appearance
+    const dishOrder = [];
+    const byDish = new Map();
+    for (const row of recRows) {
+      if (row.f.length !== 5) { refusals.recipes.push({ line: row.line, dish: (row.f[0] || "").trim(), why: "wrong number of fields" }); continue; }
+      const dk = key(row.f[0]);
+      if (!byDish.has(dk)) { byDish.set(dk, { name: row.f[0].trim(), rows: [] }); dishOrder.push(dk); }
+      byDish.get(dk).rows.push(row);
+    }
+    const dishes = [];
+    for (const dk of dishOrder) {
+      const d = byDish.get(dk);
+      const prices = [...new Set(d.rows.map(r => r.f[1].trim()))];
+      const dish = { name: d.name, status: null, lines: [], refusedLines: [], parkedLines: [], menuPrice: null, cost: null, pct: null, margin: null, why: null };
+      if (prices.length > 1) {
+        dish.status = "refused"; dish.why = "menu price conflict (" + prices.join(" vs ") + ")";
+        for (const r of d.rows) refusals.recipes.push({ line: r.line, dish: d.name, why: "dish refused: " + dish.why });
+        dishes.push(dish); continue;
+      }
+      if (!isNum(prices[0]) || Number(prices[0]) <= 0) {
+        dish.status = "refused"; dish.why = "no menu price — cannot cost a dish against " + (isNum(prices[0]) ? "$0" : "“" + prices[0] + "”");
+        for (const r of d.rows) refusals.recipes.push({ line: r.line, dish: d.name, why: "dish refused: " + dish.why });
+        dishes.push(dish); continue;
+      }
+      dish.menuPrice = Number(prices[0]);
+      const seenLines = new Set();
+      let cost = 0, incomplete = false;
+      for (const r of d.rows) {
+        const [, , ingName, qtyS, unitS] = r.f;
+        const sig = [dk, key(ingName), key(qtyS), key(unitS)].join("|");
+        const refuseLine = why => { dish.refusedLines.push({ line: r.line, ing: ingName.trim(), why }); refusals.recipes.push({ line: r.line, dish: d.name, why }); incomplete = true; };
+        if (seenLines.has(sig)) { dish.parkedLines.push({ line: r.line, ing: ingName.trim(), why: "duplicate recipe line — counted once" }); parked.recipes.push({ line: r.line, dish: d.name, why: "duplicate recipe line — counted once" }); continue; }
+        seenLines.add(sig);
+        const ik = key(ingName);
+        if (ingStatus.get(ik) === "refused") { refuseLine("ingredient “" + ingName.trim() + "” was refused on the ingredient list"); continue; }
+        const ing = ingByKey.get(ik);
+        if (!ing) { refuseLine("unknown ingredient “" + ingName.trim() + "”"); continue; }
+        if (!isNum(qtyS) || Number(qtyS) <= 0) { refuseLine("quantity “" + qtyS + "” is not a number above zero — blank or words are not amounts"); continue; }
+        const ui = unitInfo(unitS);
+        if (!ui) { refuseLine("unknown unit “" + unitS + "”"); continue; }
+        if (ui.fam !== ing.unit.fam) { refuseLine(ui.u + " is " + ui.fam + "; " + ing.name + " is bought by the " + ing.unit.u + " (" + ing.unit.fam + ") — no conversion without a density, so this line is refused"); continue; }
+        const perBase = ing.price / (ing.size * ing.unit.f) / (ing.yieldPct / 100);
+        const lineCost = Number(qtyS) * ui.f * perBase;
+        dish.lines.push({ line: r.line, ing: ing.name, qty: Number(qtyS), unit: ui.u, cost: lineCost });
+        cost += lineCost;
+      }
+      dish.cost = cost;
+      if (incomplete) { dish.status = "incomplete"; dish.why = dish.refusedLines.length + " line(s) refused — partial cost shown, excluded from totals"; }
+      else {
+        dish.status = "costed";
+        dish.pct = cost / dish.menuPrice * 100;
+        dish.margin = dish.menuPrice - cost;
+      }
+      dishes.push(dish);
+    }
+
+    // ---- sales ----
+    const salesRows = parseCSV(salesText, 2);
+    const salesByDish = new Map(); // dishKey -> {sold, line} | 'conflict'
+    const salesNotes = [];
+    const groups = new Map();
+    for (const row of salesRows) {
+      if (row.f.length !== 2) { refusals.sales.push({ line: row.line, dish: (row.f[0] || "").trim(), why: "wrong number of fields" }); continue; }
+      const dk = key(row.f[0]);
+      if (!byDish.has(dk)) { refusals.sales.push({ line: row.line, dish: row.f[0].trim(), why: "unknown dish — no recipe with this name" }); continue; }
+      if (!isNum(row.f[1]) || Number(row.f[1]) < 0 || Number(row.f[1]) % 1 !== 0) { refusals.sales.push({ line: row.line, dish: row.f[0].trim(), why: "sold count “" + row.f[1] + "” is not a whole number at or above zero" }); continue; }
+      if (!groups.has(dk)) groups.set(dk, []);
+      groups.get(dk).push({ line: row.line, sold: Number(row.f[1]), name: row.f[0].trim() });
+    }
+    for (const [dk, rows] of groups) {
+      const counts = [...new Set(rows.map(r => r.sold))];
+      if (rows.length === 1) { salesByDish.set(dk, rows[0]); continue; }
+      if (counts.length === 1) {
+        salesByDish.set(dk, rows[0]);
+        for (const r of rows.slice(1)) parked.sales.push({ line: r.line, dish: r.name, why: "duplicate sales row — counted once" });
+      } else {
+        for (const r of rows) refusals.sales.push({ line: r.line, dish: r.name, why: "conflicting sales rows (" + counts.join(" vs ") + ") — both refused, no trusted sales" });
+        salesByDish.set(dk, "conflict");
+      }
+    }
+
+    // ---- money panel ----
+    const money = { rows: [], totals: { revenue: 0, foodCost: 0, profit: 0, drag: 0 }, worst: null };
+    for (const dish of dishes) {
+      const dk = key(dish.name);
+      const s = salesByDish.get(dk);
+      if (dish.status === "costed") {
+        if (s === "conflict") { dish.salesNote = "no trusted sales"; continue; }
+        if (!s) { dish.salesNote = "no sales row"; continue; }
+        const sold = s.sold;
+        const revenue = dish.menuPrice * sold;
+        const foodCost = dish.cost * sold;
+        const profit = (dish.menuPrice - dish.cost) * sold;
+        const drag = Math.max(0, dish.cost - dish.menuPrice * target / 100) * sold;
+        money.rows.push({ dish: dish.name, sold, revenue, foodCost, profit, drag });
+        money.totals.revenue += revenue; money.totals.foodCost += foodCost;
+        money.totals.profit += profit; money.totals.drag += drag;
+      } else if (s && s !== "conflict") {
+        salesNotes.push({ dish: dish.name, sold: s.sold, why: "dish not costed (" + dish.status + ") — excluded from the money panel" });
+      }
+    }
+    for (const row of money.rows) if (!money.worst || row.drag > money.worst.drag) money.worst = row;
+    if (money.worst && money.worst.drag <= 0) money.worst = null;
+
+    // ---- statuses vs target ----
+    for (const dish of dishes) if (dish.status === "costed") dish.flag = dish.pct > target ? "OVER TARGET" : "OK";
+
+    // ---- reconciliation ----
+    const nIngData = ingRows.filter(r => true).length;
+    const nIngAccepted = ingByKey.size;
+    const nIngParked = parked.ingredients.length;
+    const nIngRefused = refusals.ingredients.length;
+    const nRecData = recRows.length;
+    let nCosted = 0, nParkedRec = 0, nRefusedRec = 0;
+    for (const d of dishes) { nCosted += d.lines.length; nParkedRec += d.parkedLines.length; }
+    nParkedRec = parked.recipes.length; // same thing
+    nRefusedRec = refusals.recipes.length;
+    const nSalesData = salesRows.length;
+    const nSalesAccepted = [...salesByDish.values()].filter(v => v !== "conflict").length;
+    const nSalesParked = parked.sales.length;
+    const nSalesRefused = refusals.sales.length;
+    const checks = [];
+    for (const h of headerBad) checks.push({ name: h + " header", pass: false, detail: "header row does not name the expected columns — paste not processed" });
+    checks.push({ name: "ingredient rows", pass: nIngData === nIngAccepted + nIngParked + nIngRefused, detail: nIngData + " = " + nIngAccepted + " + " + nIngParked + " + " + nIngRefused });
+    checks.push({ name: "recipe lines", pass: nRecData === nCosted + nParkedRec + nRefusedRec, detail: nRecData + " = " + nCosted + " + " + nParkedRec + " + " + nRefusedRec });
+    checks.push({ name: "sales rows", pass: nSalesData === nSalesAccepted + nSalesParked + nSalesRefused, detail: nSalesData + " = " + nSalesAccepted + " + " + nSalesParked + " + " + nSalesRefused });
+    let sumR = 0, sumF = 0, sumP = 0, sumD = 0;
+    for (const row of money.rows) { sumR += row.revenue; sumF += row.foodCost; sumP += row.profit; sumD += row.drag; }
+    const centEq = (a, b) => Math.abs(a - b) < 0.005;
+    checks.push({ name: "money re-added", pass: centEq(sumR, money.totals.revenue) && centEq(sumF, money.totals.foodCost) && centEq(sumP, money.totals.profit) && centEq(sumD, money.totals.drag) && centEq(money.totals.revenue - money.totals.foodCost, money.totals.profit), detail: "revenue - food cost = profit to the cent" });
+    const trust = checks.every(c => c.pass);
+
+    return {
+      target, dishes, money, refusals, parked, salesNotes, checks, trust,
+      display: { r2, r1 },
+      summary: {
+        costedDishes: dishes.filter(d => d.status === "costed").length,
+        incompleteDishes: dishes.filter(d => d.status === "incomplete").length,
+        refusedDishes: dishes.filter(d => d.status === "refused").length,
+        overTarget: dishes.filter(d => d.flag === "OVER TARGET").length,
+        ok: dishes.filter(d => d.flag === "OK").length
+      }
+    };
+  }
+  root.PlateCostCounter = { computeBoard, r2, r1 };
+})(typeof window !== "undefined" ? window : globalThis);
+if (typeof module !== "undefined" && module.exports) module.exports = globalThis.PlateCostCounter;
+
+</script>
+<script>
+const SAMPLE = {"ingredients": "ingredient, pack size, pack unit, pack price, yield %\nGround beef 80/20,10,lb,38.90,100\nBrioche bun,12,each,5.88,100\nAmerican cheese slice,96,each,18.40,100\nAtlantic salmon fillet,4,lb,52.80,78\nChicken breast,10,lb,31.50,82\nRomaine lettuce,6,lb,11.70,72\nBeefsteak tomato,10,lb,24.00,90\nRed onion,25,lb,19.75,88\nRusset potato,50,lb,28.50,81\nOlive oil,3,l,41.70,100\nCanola fryer oil,35,lb,33.25,100\nButter,4,lb,16.60,100\nHeavy cream,4,qt,12.60,100\nEggs,15,dozen,48.75,100\nParmesan,5,lb,64.50,96\nPenne pasta,20,lb,23.80,100\nCrushed tomatoes,19,lb,21.90,100\nSpring mix,3,lb,14.40,95\nApplewood bacon,15,lb,71.25,65\nSourdough bread,96,each,21.60,100\nTurkey breast,8,lb,42.00,100\nSmoked paprika,450,g,11.25,100\nBlack pepper,1,lb,9.80,100\nKosher salt,3,lb,2.85,100\nKosher salt,3,lb,2.85,100\nMayonnaise,1,gal,14.90,100\nCheddar shredded,5,lb,26.25,100\nMixed berries,5,lb,23.75,92\nVanilla ice cream,3,gal,28.20,100\nAvocado,48,each,62.40,70\nBasil fresh,1,lb,12.40,60\nGulf shrimp,2,lb,23.90,108\nDijon mustard,,oz,8.40,100\n", "recipes": "dish, menu price, ingredient, qty, unit\nHarrow Burger,14.50,Ground beef 80/20,7,oz\nHarrow Burger,14.50,Brioche bun,1,each\nHarrow Burger,14.50,American cheese slice,2,each\nHarrow Burger,14.50,American cheese slice,2,each\nHarrow Burger,14.50,Beefsteak tomato,2,oz\nHarrow Burger,14.50,Red onion,1,oz\nHarrow Burger,14.50,Romaine lettuce,1,oz\nHarrow Burger,14.50,Mayonnaise,1,tbsp\nHarrow Burger,14.50,Russet potato,8,oz\nHarrow Burger,14.50,Canola fryer oil,0.75,oz\nHarrow Burger,14.50,Kosher salt,0.1,oz\nGrilled Salmon Plate,23.00,Atlantic salmon fillet,7,oz\nGrilled Salmon Plate,23.00,Olive oil,1,tbsp\nGrilled Salmon Plate,23.00,Butter,0.5,oz\nGrilled Salmon Plate,23.00,Russet potato,6,oz\nGrilled Salmon Plate,23.00,Spring mix,1.5,oz\nGrilled Salmon Plate,23.00,Kosher salt,0.1,oz\nGrilled Salmon Plate,23.00,Black pepper,0.05,oz\nChicken Alfredo,17.50,Penne pasta,5,oz\nChicken Alfredo,17.50,Heavy cream,4,oz\nChicken Alfredo,17.50,Parmesan,1.5,oz\nChicken Alfredo,17.50,Butter,1,oz\nChicken Alfredo,17.50,Chicken breast,5,oz\nChicken Alfredo,17.50,Black pepper,0.05,oz\nBLT Club,13.00,Sourdough bread,3,each\nBLT Club,13.00,Applewood bacon,4,oz\nBLT Club,13.00,Turkey breast,3,oz\nBLT Club,13.00,Beefsteak tomato,2,oz\nBLT Club,13.00,Romaine lettuce,1,oz\nBLT Club,13.00,Mayonnaise,1.5,tbsp\nAvocado Toast,11.00,Sourdough bread,2,each\nAvocado Toast,11.00,Avocado,1,each\nAvocado Toast,11.00,Eggs,2,each\nAvocado Toast,11.00,Spring mix,1,oz\nAvocado Toast,11.00,Olive oil,2,tsp\nAvocado Toast,11.00,Smoked paprika,2,g\nPenne Marinara,12.50,Penne pasta,5,oz\nPenne Marinara,12.50,Crushed tomatoes,8,oz\nPenne Marinara,12.50,Olive oil,1,tbsp\nPenne Marinara,12.50,Parmesan,1,oz\nPenne Marinara,12.50,Basil fresh,0.25,oz\nChef's Cobb Salad,15.00,Romaine lettuce,4,oz\nChef's Cobb Salad,15.00,Chicken breast,4,oz\nChef's Cobb Salad,15.00,Applewood bacon,2,oz\nChef's Cobb Salad,15.00,Eggs,2,each\nChef's Cobb Salad,15.00,Cheddar shredded,1.5,oz\nChef's Cobb Salad,15.00,Beefsteak tomato,2,oz\nChef's Cobb Salad,15.00,Red onion,0.5,oz\nChef's Cobb Salad,15.00,Olive oil,1.5,tbsp\nTurkey Melt,12.00,Sourdough bread,2,each\nTurkey Melt,12.00,Turkey breast,4,oz\nTurkey Melt,12.00,Cheddar shredded,2,oz\nTurkey Melt,12.00,Butter,0.5,oz\nTurkey Melt,12.00,Beefsteak tomato,1,oz\nLoaded Fries,9.50,Russet potato,12,oz\nLoaded Fries,9.50,Canola fryer oil,1,oz\nLoaded Fries,9.50,Cheddar shredded,2,oz\nLoaded Fries,9.50,Applewood bacon,1.5,oz\nLoaded Fries,9.50,Mayonnaise,1,tbsp\nBerry Sundae,8.50,Vanilla ice cream,6,floz\nBerry Sundae,8.50,Mixed berries,3,oz\nDaily Soup,6.50,Crushed tomatoes,6,oz\nDaily Soup,7.00,Heavy cream,2,floz\nDaily Soup,6.50,Butter,0.5,oz\nDaily Soup,6.50,Kosher salt,0.1,oz\nStaff Meal,0,Chicken breast,4,oz\nStaff Meal,0,Russet potato,6,oz\nHarvest Grain Bowl,14.00,Farro,3,oz\nHarvest Grain Bowl,14.00,Chicken breast,4,oz\nHarvest Grain Bowl,14.00,Spring mix,2,oz\nHarvest Grain Bowl,14.00,Avocado,0.5,each\nHarvest Grain Bowl,14.00,Olive oil,1,tbsp\nHarvest Grain Bowl,14.00,Kosher salt,a pinch,oz\n", "sales": "dish, sold\nHarrow Burger,214\nGrilled Salmon Plate,58\nChicken Alfredo,92\nblt club,126\nAvocado Toast ,97\nPenne Marinara,41\nChef's Cobb Salad,73\nTurkey Melt,66\nTurkey Melt,61\nLoaded Fries,88\nBerry Sundae,52\nDaily Soup,34\nHarvest Grain Bowl,29\nVeggie Wrap,18\n"};
+const $ = id => document.getElementById(id);
+const fmt$ = x => (x < 0 ? "-$" : "$") + Math.abs(Math.floor(x * 100 + 0.5) / 100).toFixed(2);
+const fmtP = x => (Math.floor(x * 10 + 0.5) / 10).toFixed(1) + "%";
+$("loadSample").addEventListener("click", () => {
+  $("ing").value = SAMPLE.ingredients; $("rec").value = SAMPLE.recipes; $("sal").value = SAMPLE.sales;
+});
+$("run").addEventListener("click", () => {
+  const b = PlateCostCounter.computeBoard($("ing").value, $("rec").value, $("sal").value, Number($("target").value) || 0);
+  render(b);
+});
+function render(b) {
+  $("banner").classList.toggle("on", !b.trust);
+  const s = b.summary;
+  const overall = b.money.totals.revenue > 0 ? fmtP(b.money.totals.foodCost / b.money.totals.revenue * 100) : "—";
+  $("summary").className = "on";
+  $("summary").innerHTML =
+    stat(s.costedDishes, "dishes costed") + stat(s.overTarget, "over target") + stat(s.ok, "at or under") +
+    stat(s.incompleteDishes, "incomplete") + stat(s.refusedDishes, "refused") + stat(overall, "overall food cost");
+  function stat(v, l) { return '<div class="stat"><b>' + v + "</b><span>" + l + "</span></div>"; }
+  // board
+  $("boardSec").style.display = "";
+  const tb = $("board").querySelector("tbody"); tb.innerHTML = "";
+  for (const d of b.dishes) {
+    const tr = document.createElement("tr");
+    let status, cls = "";
+    if (d.status === "costed") { status = d.flag; cls = d.flag === "OK" ? "flag-ok" : "flag-over"; }
+    else if (d.status === "incomplete") { status = "INCOMPLETE"; cls = "st-inc"; }
+    else { status = "REFUSED"; cls = "st-ref"; }
+    tr.innerHTML = "<td>" + esc(d.name) + "</td>" +
+      '<td class="n">' + (d.menuPrice == null ? "—" : fmt$(d.menuPrice)) + "</td>" +
+      '<td class="n">' + (d.cost == null ? "—" : fmt$(d.cost) + (d.status === "incomplete" ? " (partial)" : "")) + "</td>" +
+      '<td class="n">' + (d.pct == null ? "—" : fmtP(d.pct)) + "</td>" +
+      '<td class="n">' + (d.margin == null ? "—" : fmt$(d.margin)) + "</td>" +
+      '<td class="' + cls + '">' + status + "</td>" +
+      '<td class="note">' + esc(d.why || d.salesNote || "") + "</td>";
+    tb.appendChild(tr);
+  }
+  // money
+  $("moneySec").style.display = "";
+  const mb = $("money").querySelector("tbody"); mb.innerHTML = "";
+  for (const m of b.money.rows) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = "<td>" + esc(m.dish) + '</td><td class="n">' + m.sold + '</td><td class="n">' + fmt$(m.revenue) +
+      '</td><td class="n">' + fmt$(m.foodCost) + '</td><td class="n">' + fmt$(m.profit) +
+      '</td><td class="n">' + (m.drag > 0.004 ? fmt$(m.drag) : "—") + "</td>";
+    mb.appendChild(tr);
+  }
+  const t = b.money.totals;
+  const trTot = document.createElement("tr");
+  trTot.innerHTML = "<th>Total</th><th></th>" +
+    '<th class="n">' + fmt$(t.revenue) + '</th><th class="n">' + fmt$(t.foodCost) +
+    '</th><th class="n">' + fmt$(t.profit) + '</th><th class="n">' + fmt$(t.drag) + "</th>";
+  mb.appendChild(trTot);
+  if (b.money.worst) {
+    $("worst").style.display = "";
+    $("worst").textContent = "Largest drag: " + b.money.worst.dish + " is running " +
+      fmt$(b.money.worst.drag) + " above the target food cost for the period on its own.";
+  } else { $("worst").style.display = "none"; }
+  // refusals / parked / notes
+  $("refSec").style.display = "";
+  const rf = $("refusals"); rf.innerHTML = "";
+  const addLi = (el, cls, txt) => { const li = document.createElement("li"); li.className = cls; li.textContent = txt; el.appendChild(li); };
+  for (const which of ["ingredients", "recipes", "sales"])
+    for (const r of b.refusals[which])
+      addLi(rf, "ref", "[" + which + " row " + r.line + "] " + (r.name || r.dish || "") + " — " + r.why);
+  if (!rf.children.length) addLi(rf, "", "Nothing refused.");
+  const pn = $("parkedNotes"); pn.innerHTML = "";
+  for (const which of ["ingredients", "recipes", "sales"])
+    for (const p of b.parked[which])
+      addLi(pn, "park", "[" + which + " row " + p.line + "] " + (p.name || p.dish || "") + " — " + p.why);
+  for (const n of b.salesNotes) addLi(pn, "park", n.dish + " (" + n.sold + " sold) — " + n.why);
+  if (!pn.children.length) addLi(pn, "", "No duplicates parked, no notes.");
+  // checks
+  $("checkSec").style.display = "";
+  const ck = $("checks"); ck.innerHTML = "";
+  for (const c of b.checks) addLi(ck, c.pass ? "pass" : "fail", (c.pass ? "PASS — " : "FAIL — ") + c.name + ": " + c.detail);
+}
+function esc(s) { const d = document.createElement("i"); d.textContent = s == null ? "" : s; return d.innerHTML; }
+</script>
+</body>
+</html>

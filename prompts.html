@@ -1,0 +1,41 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>The Plate Cost Counter — the prompts</title>
+<style>body{font:16px/1.6 "Avenir Next","Segoe UI",system-ui,sans-serif;background:#f5f3ef;color:#1d2430;max-width:880px;margin:0 auto;padding:28px 20px}
+h1{color:#1C5560}h2{color:#A03E75;margin-top:30px}pre{background:#efece6;border:1px solid #d9d4cb;border-radius:8px;padding:16px;white-space:pre-wrap;font:14px/1.55 ui-monospace,Menlo,Consolas,monospace}
+a{color:#1C5560}</style></head><body>
+<h1>The Plate Cost Counter — the three prompts, word for word</h1>
+<p>These are the exact prompts from Episode 27 of Build It With AI, in the order they were sent.
+Steal them. The tool they produced is <a href="index.html">here</a>.</p>
+<h2>Prompt 1</h2>
+<pre>I run a small restaurant and I want to know what each dish on my menu actually costs me to
+make. I have three CSV exports: ingredients (ingredient, pack size, pack unit, pack price,
+yield %), recipes (dish, menu price, ingredient, qty, unit), and sales (dish, sold). Build me
+a single HTML file where I paste all three, type my target food cost percent, and click one
+button. It should show what each plate costs, the food cost percentage against the menu
+price, which dishes are over my target, and where last week's money went. One file, no
+server, no uploads.</pre>
+<h2>Prompt 2</h2>
+<pre>Rebuild it, and this time follow these rules exactly. Units convert only inside their own
+family, at exact factors: weight (g, kg, oz, lb — 1 lb = 453.592 g), volume (ml, l, tsp,
+tbsp, fl oz, cup, qt, gal — 1 tbsp = 14.7868 ml, 1 fl oz = 29.5735 ml), count (each,
+dozen = 12). A recipe line in a different family from its ingredient's pack unit is refused —
+there is no density table, so do not guess. Yield divides: cost per usable base unit =
+(pack price ÷ pack size in base units) ÷ (yield% ÷ 100). Names match after trimming
+surrounding spaces and ignoring letter case. Menu price must agree to the cent across all of
+a dish's rows; a conflict refuses the whole dish, and a missing or zero menu price refuses
+the dish. A blank or non-numeric quantity refuses the line — blank is not zero. An exactly
+duplicated row is parked visibly and counted once; two sales rows for one dish with
+different counts are both refused and the dish shows "no trusted sales". Every refusal
+names the pasted row number and gives the reason in plain words. A dish with a refused line
+shows its partial cost and stays out of the totals and the money panel.</pre>
+<h2>Prompt 3</h2>
+<pre>Now make the page check itself before it asks to be believed. Validate each paste's header
+row first and refuse a whole paste whose columns are wrong. Then count in public:
+ingredient rows in = accepted + parked + refused; recipe lines in = costed + parked +
+refused; sales rows in = accepted + parked + refused; and the money panel must re-add to
+the cent, with revenue minus food cost equaling profit exactly. If any of those checks
+fails, print DO NOT TRUST THESE PLATE COSTS across the top of the page and leave it up.
+And fix what the independent checker caught in the last build: yield must DIVIDE the cost,
+never multiply it; the tablespoon is 14.7868 ml, not 29.5735; and sales names must match
+after trimming and case-folding, the same as everywhere else.</pre>
+</body></html>
